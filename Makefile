@@ -1,8 +1,5 @@
 BINARY_NAME=bootstrap
 
-export GOOS=linux
-export GOARCH=amd64
-export CGO_ENABLED=0
 export AWS_REGION=ap-south-1
 export AWS_PROFILE=AWS_Personal
 
@@ -15,7 +12,7 @@ deploy:
     docker cp temp-container:/app/bootstrap ./bootstrap ; \
     docker rm temp-container
 	zip -r function.zip bootstrap
-	aws lambda update-function-code --function-name "sqs-to-kafka-golang" --zip-file fileb://function.zip --region=${AWS_REGION} --profile=${AWS_PROFILE} | jq .    
+	aws lambda update-function-code --function-name "enrich-site-events" --zip-file fileb://function.zip --region=${AWS_REGION} --profile=${AWS_PROFILE} | jq .    
 
 run:
 	go run ${BINARY_NAME}.go
