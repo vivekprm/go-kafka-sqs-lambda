@@ -27,13 +27,22 @@ var (
 )
 
 type ResourceStatus struct {
-	InstanceID string `json:"instance_id"`
-	Status     string `json:"status"`
+	InstanceID string `json:"instance-id"`
+	State      string `json:"state"`
 }
 
 type Event struct {
-	DetailType string         `json:"detail-type"`
-	Detail     ResourceStatus `json:"detail"`
+	DetailType string            `json:"detail-type"`
+	Detail     ResourceStatus    `json:"detail"`
+	Tags       map[string]string `json:"tags,omitempty"`
+	Source     string            `json:"source,omitempty"`
+	Account    string            `json:"account,omitempty"`
+	Region     string            `json:"region,omitempty"`
+	Time       string            `json:"time,omitempty"`
+}
+
+func (e Event) String() string {
+	return "Event{DetailType: " + e.DetailType + ", InstanceID: " + e.Detail.InstanceID + ", Status: " + e.Detail.State + "}"
 }
 
 func init() {
@@ -53,8 +62,10 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	if err != nil {
 		log.Fatalf("Error unmarshaling event: %v", err)
 	}
+	log.Println(ev.String())
 
 	ec2InstanceID := ev.Detail.InstanceID
+	// Needs describe instances permission
 	out, err := ec2Client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
 		InstanceIds: []string{ec2InstanceID},
 	})
@@ -63,7 +74,19 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 		log.Fatalf("Failed to describe instance %s: %v", ec2InstanceID, err)
 	}
 
-	log.Printf("EC2 Instance Tags: %+v\n", out.Reservations[0].Instances[0].Tags)
+	tags := out.Reservations[0].Instances[0].Tags
+
+	evTags := map[string]string{}
+	for _, tag := range tags {
+		evTags[*tag.Key] = *tag.Value
+	}
+
+	ev.Tags = evTags
+
+	enrichedEvent, err := json.Marshal(ev)
+	if err != nil {
+		log.Fatalf("Error marshaling event: %v", err)
+	}
 
 	topic := os.Getenv("KAFKA_TOPIC")
 	bootstrapServers := os.Getenv("KAFKA_BOOTSTRAP_SERVERS")
@@ -82,7 +105,7 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	delivery_chan := make(chan kafka.Event, 10000)
 	err = p.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Value:          []byte(event)},
+		Value:          []byte(enrichedEvent)},
 		delivery_chan,
 	)
 

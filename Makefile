@@ -1,8 +1,5 @@
 BINARY_NAME=bootstrap
 
-export GOOS=linux
-export GOARCH=amd64
-export CGO_ENABLED=0
 export AWS_REGION=ap-south-1
 export AWS_PROFILE=AWS_Personal
 
