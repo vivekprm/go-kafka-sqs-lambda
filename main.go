@@ -12,15 +12,17 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
-/**
+/*
+*
 Test event for lambda:
-{
-  "detail-type": "instance status changed",
-  "detail": {
-    "instance_id": "i-0c8c2400b4b05dace",
-    "status": "stopping"
-  }
-}
+
+	{
+	  "detail-type": "instance status changed",
+	  "detail": {
+	    "instance-id": "i-0c8c2400b4b05dace",
+	    "status": "stopping"
+	  }
+	}
 */
 var (
 	ec2Client *ec2.Client
