@@ -1,7 +1,7 @@
 BINARY_NAME=bootstrap
 
-export AWS_REGION=ap-south-1
-export AWS_PROFILE=AWS_Personal
+export AWS_REGION=us-east-1
+export AWS_PROFILE=AWS_HOTMAIL
 
 .DEFAULT_GOAL := deploy
 docker:
@@ -12,7 +12,7 @@ deploy:
     docker cp temp-container:/app/bootstrap ./bootstrap ; \
     docker rm temp-container
 	zip -r function.zip bootstrap
-	aws lambda update-function-code --function-name "enrich-site-events" --zip-file fileb://function.zip --region=${AWS_REGION} --profile=${AWS_PROFILE} | jq .    
+	aws lambda update-function-code --function-name "central-ec2-event-enrichment" --zip-file fileb://function.zip --region=${AWS_REGION} --profile=${AWS_PROFILE} | jq .    
 
 run:
 	go run ${BINARY_NAME}.go
