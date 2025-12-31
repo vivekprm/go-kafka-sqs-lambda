@@ -27,7 +27,7 @@ RUN go mod download
 COPY . .
 
 # Build Lambda binary (CGO)
-RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o /app/bootstrap main.go
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -o /app/bootstrap main.go
 
 # -------- RUNTIME STAGE --------
 FROM public.ecr.aws/lambda/provided:al2023
