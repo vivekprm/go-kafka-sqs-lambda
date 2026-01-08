@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
 
@@ -28,7 +29,21 @@ Test event for lambda:
 var (
 	ec2Client *ec2.Client
 	sqsClient *sqs.Client
+	s3Client  *s3.Client
 )
+
+type RoutingDetail struct {
+	routeTableID string `json:"routetable"`
+	interfaceID  string `json:"interface"`
+}
+type PvtWorkload struct {
+	ID      string        `json:"id"`
+	Routing RoutingDetail `json:"routing"`
+}
+
+type WorkloadRoutingData struct {
+	workloads []PvtWorkload
+}
 
 type ResourceStatus struct {
 	InstanceID string `json:"instance-id"`
@@ -58,6 +73,7 @@ func init() {
 
 	ec2Client = ec2.NewFromConfig(cfg)
 	sqsClient = sqs.NewFromConfig(cfg)
+	s3Client = s3.NewFromConfig(cfg)
 }
 
 func handleRequest(ctx context.Context, event json.RawMessage) error {
@@ -92,6 +108,26 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	if err != nil {
 		log.Fatalf("Error marshaling event: %v", err)
 	}
+	// Loading data file
+	log.Println("Loading data file from ", os.Getenv("BUCKET_NAME"), os.Getenv("BUCKET_KEY"))
+
+	dataFile, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(os.Getenv("BUCKET_NAME")),
+		Key:    aws.String(os.Getenv("BUCKET_KEY")),
+	})
+	if err != nil {
+		log.Printf("Error reading data file from S3: %v\n", err)
+	}
+	defer dataFile.Body.Close()
+
+	var workloads WorkloadRoutingData
+	err = json.NewDecoder(dataFile.Body).Decode(&workloads)
+	if err != nil {
+		log.Printf("Error decoding workloads data: %v\n", err)
+	}
+	log.Printf("Loaded workload data %v\n", workloads)
+
+	//
 
 	queueURL := os.Getenv("SQS_QUEUE_URL")
 	// Needs write access to the SQS queue
