@@ -33,16 +33,12 @@ var (
 )
 
 type RoutingDetail struct {
-	routeTableID string `json:"routetable"`
-	interfaceID  string `json:"interface"`
+	RouteTableID string `json:"routetable"`
+	InterfaceID  string `json:"interface"`
 }
 type PvtWorkload struct {
 	ID      string        `json:"id"`
 	Routing RoutingDetail `json:"routing"`
-}
-
-type WorkloadRoutingData struct {
-	workloads []PvtWorkload
 }
 
 type ResourceStatus struct {
@@ -120,7 +116,7 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	}
 	defer dataFile.Body.Close()
 
-	var workloads WorkloadRoutingData
+	var workloads []PvtWorkload
 	err = json.NewDecoder(dataFile.Body).Decode(&workloads)
 	if err != nil {
 		log.Printf("Error decoding workloads data: %v\n", err)
