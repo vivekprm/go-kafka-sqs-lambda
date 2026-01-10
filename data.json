@@ -1,9 +1,10 @@
 [
     {
-        "id": "i-08f7d87ccf5755499",
-        "routing": {
+        "id": "i-0c8c2400b4b05dace",
+        "routing": [{
             "routetable": "rtb-0718e09a2930744f5",
+            "prefix": "0.0.0.0/0",
             "interface": "eni-03ad243131e1741b1"
-        }
+        }]
     }
 ]

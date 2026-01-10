@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 /*
@@ -30,15 +33,17 @@ var (
 	ec2Client *ec2.Client
 	sqsClient *sqs.Client
 	s3Client  *s3.Client
+	stsClient *sts.Client
 )
 
 type RoutingDetail struct {
 	RouteTableID string `json:"routetable"`
+	Prefix       string `json:"prefix"`
 	InterfaceID  string `json:"interface"`
 }
 type PvtWorkload struct {
-	ID      string        `json:"id"`
-	Routing RoutingDetail `json:"routing"`
+	ID      string          `json:"id"`
+	Routing []RoutingDetail `json:"routing"`
 }
 
 type ResourceStatus struct {
@@ -60,6 +65,8 @@ func (e Event) String() string {
 	return "Event{DetailType: " + e.DetailType + ", InstanceID: " + e.Detail.InstanceID + ", Status: " + e.Detail.State + "}"
 }
 
+var cfg aws.Config
+
 func init() {
 	// Initialize the S3 client outside of the handler, during the init phase
 	cfg, err := config.LoadDefaultConfig(context.TODO())
@@ -68,8 +75,7 @@ func init() {
 	}
 
 	ec2Client = ec2.NewFromConfig(cfg)
-	sqsClient = sqs.NewFromConfig(cfg)
-	s3Client = s3.NewFromConfig(cfg)
+	stsClient = sts.NewFromConfig(cfg)
 }
 
 func handleRequest(ctx context.Context, event json.RawMessage) error {
@@ -107,6 +113,18 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	// Loading data file
 	log.Println("Loading data file from ", os.Getenv("BUCKET_NAME"), os.Getenv("BUCKET_KEY"))
 
+	roleARN := os.Getenv("ASSUME_ROLE_ARN")
+	provider := stscreds.NewAssumeRoleProvider(stsClient, roleARN,
+		func(o *stscreds.AssumeRoleOptions) {
+			o.RoleSessionName = "LambdaRunSession"
+		})
+	creds := aws.NewCredentialsCache(provider)
+
+	s3Client = s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.Credentials = creds
+		o.Region = os.Getenv("CENTRAL_ACCOUNT_REGION")
+	})
+
 	dataFile, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(os.Getenv("BUCKET_NAME")),
 		Key:    aws.String(os.Getenv("BUCKET_KEY")),
@@ -122,15 +140,25 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 		log.Printf("Error decoding workloads data: %v\n", err)
 	}
 	log.Printf("Loaded workload data %v\n", workloads)
-
 	//
 
 	queueURL := os.Getenv("SQS_QUEUE_URL")
 	// Needs write access to the SQS queue
-	sqsClient.SendMessage(ctx, &sqs.SendMessageInput{
+	sqsClient = sqs.NewFromConfig(cfg, func(o *sqs.Options) {
+		o.Credentials = creds
+		o.Region = os.Getenv("CENTRAL_ACCOUNT_REGION")
+	})
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	_, err = sqsClient.SendMessage(ctxWithTimeout, &sqs.SendMessageInput{
 		QueueUrl:    aws.String(queueURL),
 		MessageBody: aws.String(string(enrichedEvent)),
 	})
+
+	if err != nil {
+		log.Printf("Error sending message to SQS: %v\n", err)
+		return nil
+	}
 
 	log.Printf("Sent enriched event with tags to SQS for site: %s", evTags["f5xc-site-name"])
 

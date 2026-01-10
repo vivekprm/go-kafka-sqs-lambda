@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadSiteDataInS3",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::redundancy-data-poc-lambda",
+        "arn:aws:s3:::redundancy-data-poc-lambda/*"
+      ]
+    },
+    {
+      "Sid": "SendToCentralSQS",
+      "Effect": "Allow",
+      "Action": "sqs:SendMessage",
+      "Resource": "arn:aws:sqs:us-east-1:665096241598:central-vpc-redundancy-queue"
+    }
+  ]
+}
