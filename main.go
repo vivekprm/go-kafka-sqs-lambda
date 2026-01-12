@@ -117,6 +117,7 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	provider := stscreds.NewAssumeRoleProvider(stsClient, roleARN,
 		func(o *stscreds.AssumeRoleOptions) {
 			o.RoleSessionName = "LambdaRunSession"
+			o.ExternalID = aws.String("central-sqs-publisher")
 		})
 	creds := aws.NewCredentialsCache(provider)
 
@@ -131,6 +132,7 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	})
 	if err != nil {
 		log.Printf("Error reading data file from S3: %v\n", err)
+		return err
 	}
 	defer dataFile.Body.Close()
 
@@ -138,6 +140,7 @@ func handleRequest(ctx context.Context, event json.RawMessage) error {
 	err = json.NewDecoder(dataFile.Body).Decode(&workloads)
 	if err != nil {
 		log.Printf("Error decoding workloads data: %v\n", err)
+		return err
 	}
 	log.Printf("Loaded workload data %v\n", workloads)
 	//
